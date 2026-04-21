@@ -1,73 +1,105 @@
-# React + TypeScript + Vite
+# Watchtower
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Figma workspace'indeki tüm dosyaların RAM baskısını izleyen dashboard.
 
-Currently, two official plugins are available:
+Figma editörü 2 GB RAM limitine sahip — büyük dosyalar bu limite yaklaştığında performans sorunlarına yol açar. Watchtower, hangi dosyaların tehlike bölgesinde olduğunu görsel olarak gösterir.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Nasıl Çalışır
 
-## React Compiler
+**Hızlı tarama** — Her dosya için `depth=2&geometry=omit` parametresiyle Figma API'sine istek atılır; sayfa, frame ve component sayısından göreli bir karmaşıklık skoru hesaplanır. Acordion açılınca otomatik tetiklenir (lazy loading).
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+**Derin tarama** — Dosyanın tam JSON'ı indirilir, byte boyutu ölçülür. `JSON boyutu × 7 ≈ tahmini RAM` formülüyle 2 GB limitine oranı hesaplanır. İstek üzerine çalışır.
 
-## Expanding the ESLint configuration
+**Renk kodlaması:**
+- Yeşil — < %40 (< ~820 MB)
+- Sarı — %40–70 (~820 MB – 1.4 GB)
+- Kırmızı — > %70 (> ~1.4 GB, tehlike bölgesi)
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+**Cache** — Proje ve dosya listesi 30 dakika localStorage'da tutulur; her session'da sıfırdan çekilmez.
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Kurulum
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### 1. Figma OAuth Uygulaması Oluştur
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+[figma.com/developers/apps](https://www.figma.com/developers/apps) adresinden yeni bir uygulama oluştur.
+
+- **Callback URL:** `http://localhost:5173/oauth/callback`
+- **Gerekli scope'lar:**
+  - `current_user:read`
+  - `file_content:read`
+  - `file_metadata:read`
+  - `projects:read`
+
+### 2. Team ID'leri Bul
+
+Figma'da bir team sayfasına git: `figma.com/files/team/TEAM_ID/...` — URL'deki sayısal ID'yi kopyala.
+
+### 3. Ortam Değişkenlerini Ayarla
+
+```bash
+cp .env.example .env
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+`.env` dosyasını düzenle:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+```env
+# Figma OAuth uygulamasından
+VITE_FIGMA_CLIENT_ID=your_client_id
+FIGMA_CLIENT_SECRET=your_client_secret
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+# OAuth callback adresi
+VITE_FIGMA_REDIRECT_URI=http://localhost:5173/oauth/callback
+
+# İzlenecek team'lerin ID'leri (virgülle ayrılmış)
+VITE_FIGMA_TEAM_IDS=123456789,987654321
+
+# Express sunucusu portu
+PORT=3001
+FRONTEND_URL=http://localhost:5173
 ```
+
+### 4. Başlat
+
+```bash
+npm install
+npm run dev
+```
+
+Tarayıcıda `http://localhost:5173` adresini aç.
+
+## Proje Yapısı
+
+```
+src/
+├── App.tsx                  # Ana uygulama, state yönetimi
+├── components/
+│   ├── TokenForm.tsx        # OAuth giriş ekranı
+│   ├── OAuthCallback.tsx    # OAuth callback işleyicisi
+│   ├── FileAccordion.tsx    # Proje accordion bileşeni
+│   ├── BranchRow.tsx        # Dosya satırı
+│   ├── RamBar.tsx           # RAM göstergesi
+│   ├── RiskSummary.tsx      # Risk özeti kartları
+│   └── SortControls.tsx     # Sıralama, filtreleme, arama
+├── lib/
+│   ├── figmaApi.ts          # Figma API istekleri
+│   ├── metrics.ts           # RAM hesaplama fonksiyonları
+│   └── cache.ts             # localStorage cache yönetimi
+└── types/
+    └── figma.ts             # TypeScript tipleri
+
+server/
+└── index.ts                 # OAuth token exchange (Express)
+```
+
+## Teknik Notlar
+
+- OAuth token'ı (`figu_` prefix'li) `Authorization: Bearer` header'ıyla gönderilir — PAT'lerin kullandığı `X-Figma-Token`'dan farklıdır.
+- `client_secret` yalnızca Express sunucusunda tutulur, frontend'e asla gönderilmez.
+- Figma `/files/{key}/branches` endpoint'i plan kısıtlamaları nedeniyle kullanılmıyor; branch dosyaları projects API'sinden ayrı file entry'ler olarak listelenir.
+- Eşzamanlı istek sayısı `pLimit` ile sınırlandırılmıştır (max 5 paralel).
+
+## Stack
+
+- React 19 + TypeScript + Vite
+- Tailwind CSS
+- Express (OAuth sunucusu)
