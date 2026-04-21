@@ -8,13 +8,17 @@ A daily cron job syncs all projects and files from Figma into a local SQLite dat
 
 **Fast scan** — Runs automatically on every sync. Sends a lightweight request to the Figma API with `depth=2&geometry=omit` and calculates a relative complexity score from page, frame, and component counts.
 
-**Deep scan** — Runs on demand or automatically for new files. Downloads the full file JSON, measures its byte size, and estimates RAM usage as `JSON size × 7 ≈ estimated RAM`, expressed as a ratio against the 2 GB limit.
+**Deep scan** — Runs automatically for new and stale files (configurable threshold, default 7 days). Downloads the full file JSON, measures its byte size, and estimates RAM usage as `JSON size × 7 ≈ estimated RAM`, expressed as a ratio against the 2 GB limit. Can also be triggered on demand per file.
 
 **Risk levels:**
 - Green — below 40% (~820 MB)
 - Amber — 40–70% (~820 MB – 1.4 GB)
 - Red — above 70% (> ~1.4 GB, danger zone)
 - Exceeded — over the 2 GB limit
+
+**Library detection** — Files with published components are automatically detected via the Figma team components API (falls back to a `componentCount ≥ 50` heuristic for non-org plans) and marked with a `lib` badge.
+
+**Branch awareness** — Branches are synced and deep scanned alongside main files. Files with branches show an expandable `⎇ N` panel with per-branch RAM, delta vs. the parent file, last modified date, and a stale badge for branches inactive for 60+ days.
 
 ## Setup
 
@@ -47,6 +51,7 @@ WATCH_PROJECTS=Kripto Main,SSO Main,Hisse Main
 PORT=3001
 DB_PATH=./data/watchtower.db
 SYNC_CRON=0 6 * * *
+STALE_SCAN_DAYS=7
 ```
 
 ### 4. Run
@@ -58,11 +63,20 @@ npm run dev      # Vite :5173 + Express :3001
 
 On first launch, click "Connect Figma" to complete the OAuth flow. An initial sync starts automatically once connected.
 
+## Docker
+
+```bash
+# copy and fill in your .env, then:
+docker compose up -d
+```
+
+The database is persisted in a named Docker volume (`watchtower_data`).
+
 ## Production
 
 ```bash
 npm run build
-NODE_ENV=production node dist-server/index.js
+NODE_ENV=production npm start
 ```
 
 In production, Express serves both the API and the React bundle from `/dist`.
@@ -71,8 +85,8 @@ In production, Express serves both the API and the React bundle from `/dist`.
 
 ```
 server/
-├── index.ts        # Express API, OAuth endpoints, cron scheduler
-├── sync.ts         # Sync orchestration
+├── index.ts        # Express API, OAuth endpoints, cron, health check, rate limiting
+├── sync.ts         # Sync orchestration (fast scan, deep scan, library detection, branches)
 ├── auth.ts         # OAuth token management and auto-refresh
 ├── figmaApi.ts     # Figma API wrappers, metrics calculation
 └── db/
@@ -82,11 +96,11 @@ server/
 src/
 ├── App.tsx
 ├── components/
-│   ├── FilesTable.tsx    # Main table (RAM bar, score, scan age)
+│   ├── FilesTable.tsx    # Main table with expandable branch panel
 │   ├── ProjectCards.tsx  # Project summary cards with risk chips
-│   ├── SortControls.tsx  # Search, filter, sort
-│   ├── BranchRow.tsx     # File row component
-│   └── RamBar.tsx        # RAM pressure bar
+│   ├── SortControls.tsx  # Search, filter, sort (single row)
+│   ├── RamBar.tsx        # RAM pressure bar
+│   └── BranchRow.tsx     # Legacy file row (accordion view)
 └── lib/
     └── metrics.ts        # RAM pressure, color, risk level calculations
 ```
@@ -96,9 +110,10 @@ src/
 | Table | Contents |
 |-------|----------|
 | `projects` | Figma project list |
-| `files` | Files within each project |
+| `files` | Files within each project (`is_library` flag included) |
 | `fast_metrics` | Page/frame/component counts, complexity score |
 | `deep_metrics` | JSON size, node count, estimated RAM, scan timestamp |
+| `branches` | Branch list per file with RAM, last modified, scan timestamp |
 | `oauth_tokens` | Access/refresh tokens (server-side only) |
 | `sync_log` | Record of every sync attempt |
 
@@ -106,13 +121,14 @@ src/
 
 | Endpoint | Description |
 |----------|-------------|
+| `GET /health` | Uptime, last sync info, DB file size |
 | `GET /api/auth/status` | Connection status |
 | `GET /api/auth/connect` | Start Figma OAuth flow |
 | `POST /api/auth/logout` | Clear tokens |
-| `GET /api/data` | All projects, files, and metrics |
+| `GET /api/data` | All projects, files, metrics, and branches |
 | `POST /api/sync` | Trigger a manual sync |
 | `GET /api/sync/status` | Sync status and last run info |
-| `POST /api/files/:key/deep-scan` | Deep scan a single file on demand |
+| `POST /api/files/:key/deep-scan` | Deep scan a single file on demand (rate limited: 10 req/min) |
 
 ## Stack
 
