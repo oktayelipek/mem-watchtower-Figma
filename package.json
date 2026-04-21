@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently \"tsx watch server/index.ts\" \"wait-on tcp:3001 && vite\"",
+    "dev": "concurrently \"tsx watch server/index.ts\" \"wait-on http://localhost:3001/health && vite\"",
     "build": "tsc -b && vite build",
     "start": "NODE_ENV=production tsx server/index.ts",
     "lint": "eslint .",
