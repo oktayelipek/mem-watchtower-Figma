@@ -4,7 +4,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import cron from 'node-cron'
 import { db, runMigrations } from './db/index.js'
-import { projects, files, fastMetrics, deepMetrics, syncLog } from './db/schema.js'
+import { projects, files, fastMetrics, deepMetrics, syncLog, oauthTokens } from './db/schema.js'
 import { runSync, isSyncRunning } from './sync.js'
 import { getDeepMetrics } from './figmaApi.js'
 import { exchangeCode, getValidToken, isConnected } from './auth.js'
@@ -39,6 +39,11 @@ app.get('/api/auth/connect', (_req, res) => {
   url.searchParams.set('state', state)
   url.searchParams.set('response_type', 'code')
   res.redirect(url.toString())
+})
+
+app.post('/api/auth/logout', async (_req, res) => {
+  await db.delete(oauthTokens)
+  res.json({ ok: true })
 })
 
 app.get('/oauth/callback', async (req, res) => {
@@ -89,6 +94,7 @@ app.get('/api/data', async (_req, res) => {
           jsonSizeMB: deepByKey[f.key].jsonSizeMb,
           nodeCount: deepByKey[f.key].nodeCount,
           estimatedRamMB: deepByKey[f.key].estimatedRamMb,
+          fetchedAt: deepByKey[f.key].fetchedAt,
         } : null,
       })),
   }))

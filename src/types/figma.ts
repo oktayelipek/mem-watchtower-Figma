@@ -9,6 +9,7 @@ export interface DeepMetrics {
   jsonSizeMB: number
   nodeCount: number
   estimatedRamMB: number
+  fetchedAt: number | null
 }
 
 export interface FileData {

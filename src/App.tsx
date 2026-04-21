@@ -1,9 +1,9 @@
 import { useState, useCallback, useEffect, useMemo } from 'react'
 import type { ProjectData, FileData } from './types/figma'
 import { getRiskLevel } from './lib/metrics'
-import { FileAccordion } from './components/FileAccordion'
+import { FilesTable } from './components/FilesTable'
 import { SortControls, type SortKey, type RiskFilter } from './components/SortControls'
-import { RiskSummary } from './components/RiskSummary'
+import { ProjectCards } from './components/ProjectCards'
 
 interface SyncStatus {
   id: number
@@ -22,6 +22,7 @@ export default function App() {
   const [riskFilter, setRiskFilter] = useState<RiskFilter>('all')
   const [search, setSearch] = useState('')
   const [syncing, setSyncing] = useState(false)
+  const [projectFilter, setProjectFilter] = useState('')
 
   const loadData = useCallback(async () => {
     const authRes = await fetch('/api/auth/status')
@@ -41,7 +42,7 @@ export default function App() {
             thumbnailUrl: string | null
             lastModified: string
             fastMetrics: { pageCount: number; frameCount: number; componentCount: number; complexityScore: number } | null
-            deepMetrics: { jsonSizeMB: number; nodeCount: number; estimatedRamMB: number } | null
+            deepMetrics: { jsonSizeMB: number; nodeCount: number; estimatedRamMB: number; fetchedAt: number | null } | null
           }>
         }>
         lastSync: SyncStatus | null
@@ -58,7 +59,7 @@ export default function App() {
           thumbnail_url: f.thumbnailUrl ?? '',
           last_modified: f.lastModified,
           fastMetrics: f.fastMetrics,
-          deepMetrics: f.deepMetrics,
+          deepMetrics: f.deepMetrics ? { ...f.deepMetrics, fetchedAt: f.deepMetrics.fetchedAt ?? null } : null,
           loadingFast: false,
           loadingDeep: false,
           errorFast: null,
@@ -76,6 +77,29 @@ export default function App() {
   }, [])
 
   useEffect(() => { loadData() }, [loadData])
+
+  // Auto-poll if a background sync is already running when the page loads
+  useEffect(() => {
+    let poll: ReturnType<typeof setInterval> | null = null
+    fetch('/api/sync/status')
+      .then((r) => r.json())
+      .then(({ isRunning }) => {
+        if (!isRunning) return
+        setSyncing(true)
+        poll = setInterval(async () => {
+          const res = await fetch('/api/sync/status')
+          const { isRunning: still, lastSync: ls } = await res.json()
+          if (!still) {
+            clearInterval(poll!)
+            setSyncing(false)
+            setLastSync(ls)
+            loadData()
+          }
+        }, 3000)
+      })
+      .catch(() => {})
+    return () => { if (poll) clearInterval(poll) }
+  }, [])
 
   const deepScanFile = useCallback(async (projectId: string, fileKey: string) => {
     setProjects((prev) =>
@@ -117,10 +141,20 @@ export default function App() {
     }
   }, [])
 
-  const deepScanAll = useCallback(async (projectId: string) => {
+  const deepScanAll = useCallback(async () => {
+    for (const proj of projects) {
+      for (const f of proj.files) {
+        if (!f.deepMetrics) await deepScanFile(proj.projectId, f.key)
+      }
+    }
+  }, [projects, deepScanFile])
+
+  const deepScanProject = useCallback(async (projectId: string) => {
     const proj = projects.find((p) => p.projectId === projectId)
     if (!proj) return
-    for (const f of proj.files) await deepScanFile(projectId, f.key)
+    for (const f of proj.files) {
+      if (!f.deepMetrics) await deepScanFile(projectId, f.key)
+    }
   }, [projects, deepScanFile])
 
   const triggerSync = useCallback(async () => {
@@ -143,44 +177,25 @@ export default function App() {
     }
   }, [loadData])
 
-  const toggleProject = useCallback((projectId: string) => {
-    setProjects((prev) =>
-      prev.map((p) => p.projectId === projectId ? { ...p, expanded: !p.expanded } : p)
-    )
-  }, [])
-
-  const toggleAll = useCallback(() => {
-    setProjects((prev) => {
-      const anyCollapsed = prev.some((p) => !p.expanded)
-      return prev.map((p) => ({ ...p, expanded: anyCollapsed }))
-    })
-  }, [])
+  const filteredProjects = useMemo(() =>
+    projectFilter ? projects.filter((p) => p.projectId === projectFilter) : projects,
+    [projects, projectFilter]
+  )
 
   const visibleFileKeys = useMemo(() => {
     const q = search.trim().toLowerCase()
     return new Set(
-      projects.flatMap((p) => p.files).filter((f) => {
+      filteredProjects.flatMap((p) => p.files).filter((f) => {
         if (q && !f.name.toLowerCase().includes(q)) return false
         if (riskFilter === 'all') return true
         if (riskFilter === 'unscanned') return !f.deepMetrics
         return getRiskLevel(f.fastMetrics, f.deepMetrics) === riskFilter
       }).map((f) => f.key)
     )
-  }, [projects, search, riskFilter])
+  }, [filteredProjects, search, riskFilter])
 
   const isFiltering = search.trim() !== '' || riskFilter !== 'all'
-
-  const sortedProjects = useMemo(() => [...projects].sort((a, b) => {
-    if (sort === 'name') return a.projectName.localeCompare(b.projectName)
-    const score = (proj: ProjectData) =>
-      sort === 'ram'
-        ? Math.max(...proj.files.map((f) => f.deepMetrics?.estimatedRamMB ?? 0), 0)
-        : proj.files.reduce((acc, f) => acc + (f.fastMetrics?.complexityScore ?? 0), 0)
-    return score(b) - score(a)
-  }), [projects, sort])
-
-  const totalFiles = projects.reduce((acc, p) => acc + p.files.length, 0)
-  const allExpanded = projects.length > 0 && projects.every((p) => p.expanded)
+  const totalFiles = filteredProjects.reduce((acc, p) => acc + p.files.length, 0)
 
   const lastSyncLabel = lastSync
     ? lastSync.status === 'running'
@@ -234,6 +249,17 @@ export default function App() {
             >
               {syncing ? 'Syncing…' : 'Sync now'}
             </button>
+            <button
+              onClick={async () => {
+                await fetch('/api/auth/logout', { method: 'POST' })
+                setConnected(false)
+                setProjects([])
+                setLastSync(null)
+              }}
+              className="text-xs text-slate-600 hover:text-red-400 transition-colors"
+            >
+              Disconnect
+            </button>
           </div>
         </div>
       </header>
@@ -255,30 +281,21 @@ export default function App() {
           </div>
         ) : (
           <>
-            <RiskSummary projects={projects} onFilter={setRiskFilter} activeFilter={riskFilter} />
+            <ProjectCards
+              projects={projects}
+              activeProjectId={projectFilter}
+              onProjectFilter={setProjectFilter}
+              onScanProject={deepScanProject}
+            />
 
             <SortControls
               sort={sort} onSort={setSort}
               riskFilter={riskFilter} onRiskFilter={setRiskFilter}
               search={search} onSearch={setSearch}
-              totalProjects={projects.length} totalFiles={totalFiles}
-              allExpanded={allExpanded} onToggleAll={toggleAll}
+              totalProjects={filteredProjects.length} totalFiles={totalFiles}
             />
 
-            <div className="space-y-3">
-              {sortedProjects.map((proj) => (
-                <FileAccordion
-                  key={proj.projectId}
-                  data={proj}
-                  onToggle={() => toggleProject(proj.projectId)}
-                  onDeepScanFile={(fileKey) => deepScanFile(proj.projectId, fileKey)}
-                  onDeepScanAll={() => deepScanAll(proj.projectId)}
-                  visibleFileKeys={isFiltering ? visibleFileKeys : undefined}
-                />
-              ))}
-            </div>
-
-            {projects.length === 0 && !loading && (
+            {projects.length === 0 ? (
               <div className="text-center py-20 text-slate-500 space-y-3">
                 <p>No data yet.</p>
                 <button
@@ -289,12 +306,20 @@ export default function App() {
                   {syncing ? 'Syncing…' : 'Run first sync'}
                 </button>
               </div>
-            )}
-
-            {isFiltering && visibleFileKeys.size === 0 && projects.length > 0 && (
-              <div className="text-center py-12 text-slate-500 text-sm">
-                No files match the current filters.
-              </div>
+            ) : (
+              <>
+                <FilesTable
+                  projects={filteredProjects}
+                  sort={sort}
+                  visibleFileKeys={isFiltering ? visibleFileKeys : undefined}
+                  onDeepScanAll={deepScanAll}
+                />
+                {isFiltering && visibleFileKeys.size === 0 && (
+                  <div className="text-center py-12 text-slate-500 text-sm">
+                    No files match the current filters.
+                  </div>
+                )}
+              </>
             )}
           </>
         )}

@@ -1,6 +1,6 @@
 import { db } from './db/index.js'
-import { projects, files, fastMetrics, syncLog } from './db/schema.js'
-import { getTeamProjects, getProjectFiles, getFastMetrics, pLimit } from './figmaApi.js'
+import { projects, files, fastMetrics, deepMetrics, syncLog } from './db/schema.js'
+import { getTeamProjects, getProjectFiles, getFastMetrics, getDeepMetrics, pLimit } from './figmaApi.js'
 import { getValidToken } from './auth.js'
 import { eq } from 'drizzle-orm'
 
@@ -8,6 +8,15 @@ const TEAM_IDS = [...new Set(
   (process.env.VITE_FIGMA_TEAM_IDS ?? '')
     .split(',').map((s) => s.trim()).filter(Boolean)
 )]
+
+const WATCH_PROJECTS = new Set(
+  (process.env.WATCH_PROJECTS ?? '')
+    .split(',').map((s) => s.trim()).filter(Boolean)
+)
+
+const PROJECT_RENAMES: Record<string, string> = {
+  'Main Kripto': 'SSO Main',
+}
 
 let syncRunning = false
 
@@ -44,6 +53,8 @@ export async function runSync(): Promise<void> {
       5,
     )
     const allProjects = projectsByTeam.flat()
+      .map((p) => ({ ...p, name: PROJECT_RENAMES[p.name] ?? p.name }))
+      .filter((p) => WATCH_PROJECTS.size === 0 || WATCH_PROJECTS.has(p.name))
 
     // Upsert projects
     for (const p of allProjects) {
@@ -115,6 +126,35 @@ export async function runSync(): Promise<void> {
       }),
       5,
     )
+
+    // Deep scan files that don't have metrics yet
+    const existingDeep = await db.select({ fileKey: deepMetrics.fileKey }).from(deepMetrics)
+    const existingDeepKeys = new Set(existingDeep.map((r) => r.fileKey))
+    const unscannedFiles = allFiles.filter((f) => !existingDeepKeys.has(f.key))
+
+    if (unscannedFiles.length > 0) {
+      console.log(`Deep scanning ${unscannedFiles.length} new files…`)
+      await pLimit(
+        unscannedFiles.map((f) => async () => {
+          try {
+            const m = await getDeepMetrics(pat, f.key)
+            await db.insert(deepMetrics).values({
+              fileKey: f.key,
+              jsonSizeMb: m.jsonSizeMb,
+              nodeCount: m.nodeCount,
+              estimatedRamMb: m.estimatedRamMb,
+              fetchedAt: Date.now(),
+            }).onConflictDoUpdate({
+              target: deepMetrics.fileKey,
+              set: { jsonSizeMb: m.jsonSizeMb, nodeCount: m.nodeCount, estimatedRamMb: m.estimatedRamMb, fetchedAt: Date.now() },
+            })
+          } catch (err) {
+            console.error(`Deep scan for ${f.key} failed:`, err)
+          }
+        }),
+        2,
+      )
+    }
 
     await db.update(syncLog)
       .set({ finishedAt: Date.now(), filesSynced, status: 'done' })

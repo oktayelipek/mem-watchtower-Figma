@@ -1,5 +1,5 @@
 import type { FileData } from '../types/figma'
-import { getRamPressure, getRamColor, getRamLabel, getComplexityBar, formatBytes, formatDate } from '../lib/metrics'
+import { getRamPressure, getRamColor, getComplexityBar, formatBytes, formatDate } from '../lib/metrics'
 import { RamBar } from './RamBar'
 
 interface BranchRowProps {
@@ -14,16 +14,13 @@ export function BranchRow({ data, allComplexityScores, onDeepScan }: BranchRowPr
 
   let barRatio = 0
   let barColor = '#64748b'
-  let barLabel = '—'
 
   if (deepMetrics) {
     barRatio = getRamPressure(fastMetrics, deepMetrics)
     barColor = getRamColor(barRatio)
-    barLabel = getRamLabel(fastMetrics, deepMetrics)
   } else if (fastMetrics && allComplexityScores.length > 0) {
     barRatio = getComplexityBar(fastMetrics, allComplexityScores)
     barColor = getRamColor(barRatio * 0.6)
-    barLabel = getRamLabel(fastMetrics, null)
   }
 
   return (
@@ -51,7 +48,7 @@ export function BranchRow({ data, allComplexityScores, onDeepScan }: BranchRowPr
         ) : errorFast ? (
           <span className="text-xs text-red-400" title={errorFast}>Error</span>
         ) : (
-          <RamBar ratio={barRatio} color={barColor} label={barLabel} showScale={!!deepMetrics} />
+          <RamBar ratio={barRatio} color={barColor} />
         )}
       </div>
 
