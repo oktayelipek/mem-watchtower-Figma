@@ -1,9 +1,16 @@
 import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const isProd = process.env.NODE_ENV === 'production'
 
 const app = express()
-app.use(cors({ origin: process.env.FRONTEND_URL ?? 'http://localhost:5173' }))
+if (!isProd) {
+  app.use(cors({ origin: process.env.FRONTEND_URL ?? 'http://localhost:5173' }))
+}
 app.use(express.json())
 
 const TOKEN_URLS = [
@@ -91,5 +98,12 @@ app.get('/api/debug/branches/:fileKey', async (req, res) => {
   res.status(figmaRes.status).send(text)
 })
 
+// Serve React app in production
+if (isProd) {
+  const distPath = path.join(__dirname, '../dist')
+  app.use(express.static(distPath))
+  app.get('*', (_req, res) => res.sendFile(path.join(distPath, 'index.html')))
+}
+
 const port = Number(process.env.PORT ?? 3001)
-app.listen(port, () => console.log(`OAuth server: http://localhost:${port}`))
+app.listen(port, '0.0.0.0', () => console.log(`Server: http://0.0.0.0:${port}`))
