@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently \"vite\" \"tsx watch server/index.ts\"",
+    "dev": "concurrently \"tsx watch server/index.ts\" \"wait-on tcp:3001 && vite\"",
     "build": "tsc -b && vite build",
     "start": "NODE_ENV=production tsx server/index.ts",
     "lint": "eslint .",
@@ -41,6 +41,7 @@
     "tailwindcss": "^4.2.3",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.58.2",
-    "vite": "^8.0.9"
+    "vite": "^8.0.9",
+    "wait-on": "^9.0.5"
   }
 }
