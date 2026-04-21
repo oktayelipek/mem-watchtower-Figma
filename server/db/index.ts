@@ -19,5 +19,18 @@ const migrationsFolder = path.join(path.dirname(new URL(import.meta.url).pathnam
 
 export function runMigrations() {
   migrate(db, { migrationsFolder })
+
+  // Idempotent patches — guard against migration runner skipping ALTER TABLE on existing DBs
+  try { sqlite.exec('ALTER TABLE files ADD COLUMN is_library INTEGER NOT NULL DEFAULT 0') } catch { /* already exists */ }
+  try {
+    sqlite.exec(`CREATE TABLE IF NOT EXISTS branches (
+      branch_key TEXT PRIMARY KEY NOT NULL,
+      parent_file_key TEXT NOT NULL,
+      name TEXT NOT NULL,
+      estimated_ram_mb REAL,
+      fetched_at INTEGER NOT NULL
+    )`)
+  } catch { /* already exists */ }
+
   console.log('DB migrations applied.')
 }
