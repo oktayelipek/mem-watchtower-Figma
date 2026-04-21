@@ -1,8 +1,8 @@
 const BASE = 'https://api.figma.com/v1'
 
-async function figmaFetch(token: string, path: string): Promise<Response> {
+async function figmaFetch(pat: string, path: string): Promise<Response> {
   const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Authorization': `Bearer ${token}` },
+    headers: { 'X-Figma-Token': pat },
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
@@ -11,67 +11,55 @@ async function figmaFetch(token: string, path: string): Promise<Response> {
   return res
 }
 
-export async function getMe(token: string) {
-  const res = await figmaFetch(token, '/me')
-  return res.json()
-}
-
-export async function getTeamProjects(token: string, teamId: string) {
-  const res = await figmaFetch(token, `/teams/${teamId}/projects`)
+export async function getTeamProjects(pat: string, teamId: string) {
+  const res = await figmaFetch(pat, `/teams/${teamId}/projects`)
   const data = await res.json()
   return data.projects as Array<{ id: string; name: string }>
 }
 
-export async function getProjectFiles(token: string, projectId: string) {
-  const res = await figmaFetch(token, `/projects/${projectId}/files`)
+export async function getProjectFiles(pat: string, projectId: string) {
+  const res = await figmaFetch(pat, `/projects/${projectId}/files`)
   const data = await res.json()
   return data.files as Array<{ key: string; name: string; thumbnail_url: string; last_modified: string }>
 }
 
-export async function getFastMetrics(token: string, fileKey: string) {
-  const res = await figmaFetch(token, `/files/${fileKey}?depth=2&geometry=omit`)
+export async function getFastMetrics(pat: string, fileKey: string) {
+  const res = await figmaFetch(pat, `/files/${fileKey}?depth=2&geometry=omit`)
   const data = await res.json()
   const doc = data.document
 
   let pageCount = 0
   let frameCount = 0
-
   if (doc?.children) {
     pageCount = doc.children.length
     for (const page of doc.children) {
       if (page.children) frameCount += page.children.length
     }
   }
-
   const componentCount = Object.keys(data.components ?? {}).length
   const complexityScore = pageCount * 10 + frameCount + componentCount * 2
 
   return { pageCount, frameCount, componentCount, complexityScore }
 }
 
-export async function getDeepMetrics(token: string, fileKey: string) {
-  const res = await figmaFetch(token, `/files/${fileKey}`)
+export async function getDeepMetrics(pat: string, fileKey: string) {
+  const res = await figmaFetch(pat, `/files/${fileKey}`)
   const text = await res.text()
-  const jsonSizeMB = new Blob([text]).size / 1024 / 1024
+  const jsonSizeMb = new Blob([text]).size / 1024 / 1024
 
   let nodeCount = 0
   const countNodes = (node: unknown): void => {
     if (!node || typeof node !== 'object') return
     nodeCount++
     const n = node as Record<string, unknown>
-    if (Array.isArray(n.children)) {
-      for (const child of n.children) countNodes(child)
-    }
+    if (Array.isArray(n.children)) n.children.forEach(countNodes)
   }
-
   try {
     const data = JSON.parse(text)
     countNodes(data.document)
-  } catch {
-    // ignore parse errors
-  }
+  } catch { /* ignore */ }
 
-  return { jsonSizeMB, nodeCount, estimatedRamMB: jsonSizeMB * 7 }
+  return { jsonSizeMb, nodeCount, estimatedRamMb: jsonSizeMb * 7 }
 }
 
 export async function pLimit<T>(tasks: (() => Promise<T>)[], concurrency = 5): Promise<T[]> {

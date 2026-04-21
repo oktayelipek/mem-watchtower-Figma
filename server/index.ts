@@ -1,109 +1,129 @@
 import 'dotenv/config'
 import express from 'express'
-import cors from 'cors'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import cron from 'node-cron'
+import { db, runMigrations } from './db/index.js'
+import { projects, files, fastMetrics, deepMetrics, syncLog } from './db/schema.js'
+import { runSync, isSyncRunning } from './sync.js'
+import { getDeepMetrics } from './figmaApi.js'
+import { eq, desc } from 'drizzle-orm'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const isProd = process.env.NODE_ENV === 'production'
 
+runMigrations()
+
 const app = express()
-if (!isProd) {
-  app.use(cors({ origin: process.env.FRONTEND_URL ?? 'http://localhost:5173' }))
-}
 app.use(express.json())
 
-const TOKEN_URLS = [
-  'https://api.figma.com/v1/oauth/token',
-  'https://www.figma.com/api/oauth/token',
-]
+// ── Data API ────────────────────────────────────────────────────────────────
 
-app.post('/api/oauth/token', async (req, res) => {
-  const { code } = req.body as { code?: string }
-  if (!code) {
-    res.status(400).json({ error: 'Missing code' })
-    return
-  }
+app.get('/api/data', async (_req, res) => {
+  const allProjects = await db.select().from(projects)
+  const allFiles = await db.select().from(files)
+  const allFast = await db.select().from(fastMetrics)
+  const allDeep = await db.select().from(deepMetrics)
+  const lastSync = await db.select().from(syncLog)
+    .orderBy(desc(syncLog.id)).limit(1)
 
-  const clientId = process.env.FIGMA_CLIENT_ID
-  const clientSecret = process.env.FIGMA_CLIENT_SECRET
-  const redirectUri = process.env.FIGMA_REDIRECT_URI ?? 'http://localhost:5173/oauth/callback'
+  const fastByKey = Object.fromEntries(allFast.map((m) => [m.fileKey, m]))
+  const deepByKey = Object.fromEntries(allDeep.map((m) => [m.fileKey, m]))
 
-  if (!clientId || !clientSecret) {
-    res.status(500).json({ error: 'FIGMA_CLIENT_ID or FIGMA_CLIENT_SECRET is not set' })
-    return
-  }
+  const result = allProjects.map((p) => ({
+    projectId: p.id,
+    projectName: p.name,
+    teamId: p.teamId,
+    files: allFiles
+      .filter((f) => f.projectId === p.id)
+      .map((f) => ({
+        key: f.key,
+        name: f.name,
+        thumbnailUrl: f.thumbnailUrl,
+        lastModified: f.lastModified,
+        fastMetrics: fastByKey[f.key] ? {
+          pageCount: fastByKey[f.key].pageCount,
+          frameCount: fastByKey[f.key].frameCount,
+          componentCount: fastByKey[f.key].componentCount,
+          complexityScore: fastByKey[f.key].complexityScore,
+        } : null,
+        deepMetrics: deepByKey[f.key] ? {
+          jsonSizeMB: deepByKey[f.key].jsonSizeMb,
+          nodeCount: deepByKey[f.key].nodeCount,
+          estimatedRamMB: deepByKey[f.key].estimatedRamMb,
+        } : null,
+      })),
+  }))
 
-  const body = new URLSearchParams({
-    client_id: clientId,
-    client_secret: clientSecret,
-    redirect_uri: redirectUri,
-    code,
-    grant_type: 'authorization_code',
-  })
+  res.json({ projects: result, lastSync: lastSync[0] ?? null })
+})
 
-  // Basic Auth header (some OAuth servers require this)
-  const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
+// ── Deep scan (on-demand) ───────────────────────────────────────────────────
 
-  for (const url of TOKEN_URLS) {
-    console.log(`Trying token endpoint: ${url}`)
+app.post('/api/files/:key/deep-scan', async (req, res) => {
+  const pat = process.env.FIGMA_PAT
+  if (!pat) { res.status(500).json({ error: 'FIGMA_PAT not set' }); return }
 
-    const figmaRes = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': `Basic ${basicAuth}`,
-      },
-      body: body.toString(),
+  const { key } = req.params
+  try {
+    const m = await getDeepMetrics(pat, key)
+    await db.insert(deepMetrics).values({
+      fileKey: key,
+      jsonSizeMb: m.jsonSizeMb,
+      nodeCount: m.nodeCount,
+      estimatedRamMb: m.estimatedRamMb,
+      fetchedAt: Date.now(),
+    }).onConflictDoUpdate({
+      target: deepMetrics.fileKey,
+      set: { jsonSizeMb: m.jsonSizeMb, nodeCount: m.nodeCount, estimatedRamMb: m.estimatedRamMb, fetchedAt: Date.now() },
     })
+    res.json({ jsonSizeMB: m.jsonSizeMb, nodeCount: m.nodeCount, estimatedRamMB: m.estimatedRamMb })
+  } catch (err) {
+    res.status(502).json({ error: (err as Error).message })
+  }
+})
 
-    const rawText = await figmaRes.text()
-    console.log(`→ ${figmaRes.status}: ${rawText.slice(0, 300)}`)
+// ── Sync control ────────────────────────────────────────────────────────────
 
-    if (figmaRes.status === 404) continue  // try next URL
-
-    let data: Record<string, string> = {}
-    try {
-      data = JSON.parse(rawText)
-    } catch {
-      res.status(502).json({ error: `Figma API error (${figmaRes.status}): ${rawText}` })
-      return
-    }
-
-    if (!figmaRes.ok) {
-      res.status(400).json({ error: data.error_description ?? data.error ?? `HTTP ${figmaRes.status}` })
-      return
-    }
-
-    res.json({ access_token: data.access_token })
+app.post('/api/sync', async (_req, res) => {
+  if (isSyncRunning()) {
+    res.json({ status: 'already_running' })
     return
   }
-
-  res.status(502).json({ error: 'Figma token endpoint not found. Check server logs.' })
+  runSync().catch((err) => console.error('Sync error:', err))
+  res.json({ status: 'started' })
 })
 
-app.get('/api/debug/branches/:fileKey', async (req, res) => {
-  const token = req.headers['x-figma-token'] as string
-  if (!token) { res.status(400).json({ error: 'x-figma-token header missing' }); return }
-
-  const { fileKey } = req.params
-  const url = `https://api.figma.com/v1/files/${fileKey}/branches`
-  console.log(`DEBUG branches: GET ${url}`)
-
-  const figmaRes = await fetch(url, {
-    headers: { 'Authorization': `Bearer ${token}` },
-  })
-  const text = await figmaRes.text()
-  console.log(`DEBUG branches response ${figmaRes.status}:`, text.slice(0, 500))
-  res.status(figmaRes.status).send(text)
+app.get('/api/sync/status', async (_req, res) => {
+  const last = await db.select().from(syncLog).orderBy(desc(syncLog.id)).limit(1)
+  res.json({ lastSync: last[0] ?? null, isRunning: isSyncRunning() })
 })
 
-// Serve React app in production
+// ── Static frontend ─────────────────────────────────────────────────────────
+
 if (isProd) {
   const distPath = path.join(__dirname, '../dist')
   app.use(express.static(distPath))
   app.use((_req, res) => res.sendFile(path.join(distPath, 'index.html')))
 }
 
+// ── Start ───────────────────────────────────────────────────────────────────
+
 const port = Number(process.env.PORT ?? 3001)
 app.listen(port, '0.0.0.0', () => console.log(`Server: http://0.0.0.0:${port}`))
+
+// Daily sync at 06:00 UTC (configurable via SYNC_CRON env var)
+const cronSchedule = process.env.SYNC_CRON ?? '0 6 * * *'
+cron.schedule(cronSchedule, () => {
+  console.log('Cron: starting scheduled sync...')
+  runSync().catch((err) => console.error('Cron sync error:', err))
+})
+console.log(`Sync scheduled: ${cronSchedule}`)
+
+// Auto-sync on startup if DB is empty
+db.select().from(syncLog).limit(1).then((rows) => {
+  if (rows.length === 0) {
+    console.log('No previous sync found. Running initial sync...')
+    runSync().catch((err) => console.error('Initial sync error:', err))
+  }
+})
