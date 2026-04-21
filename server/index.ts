@@ -118,6 +118,7 @@ app.get('/api/data', async (_req, res) => {
           branchKey: b.branchKey,
           name: b.name,
           estimatedRamMB: b.estimatedRamMb,
+          lastModified: b.lastModified,
         })),
         fastMetrics: fastByKey[f.key] ? {
           pageCount: fastByKey[f.key].pageCount,

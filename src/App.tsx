@@ -42,7 +42,7 @@ export default function App() {
             thumbnailUrl: string | null
             lastModified: string
             isLibrary: boolean
-            branches: Array<{ branchKey: string; name: string; estimatedRamMB: number | null }>
+            branches: Array<{ branchKey: string; name: string; estimatedRamMB: number | null; lastModified: string | null }>
             fastMetrics: { pageCount: number; frameCount: number; componentCount: number; complexityScore: number } | null
             deepMetrics: { jsonSizeMB: number; nodeCount: number; estimatedRamMB: number; fetchedAt: number | null } | null
           }>

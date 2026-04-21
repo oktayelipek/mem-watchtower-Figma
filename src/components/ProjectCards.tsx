@@ -1,5 +1,5 @@
 import type { ProjectData } from '../types/figma'
-import { getRiskLevel, getRamPressure, getRamColor, RAM_LIMIT_MB } from '../lib/metrics'
+import { getRiskLevel, getRamPressure, getRamColor } from '../lib/metrics'
 
 function projectLabel(name: string) {
   return name.replace(/^_/, '').replace(/\s*\[\d+\s*\w*\]/, '').trim()
@@ -9,9 +9,8 @@ function getProjectStats(project: ProjectData) {
   const { files } = project
   const scanned = files.filter((f) => f.deepMetrics)
 
-  const exceeded = scanned.filter((f) => f.deepMetrics!.estimatedRamMB > RAM_LIMIT_MB).length
   const libs = files.filter((f) => f.isLibrary).length
-  const high = scanned.filter((f) => getRiskLevel(f.fastMetrics, f.deepMetrics) === 'high' && f.deepMetrics!.estimatedRamMB <= RAM_LIMIT_MB).length
+  const high = scanned.filter((f) => getRiskLevel(f.fastMetrics, f.deepMetrics) === 'high').length
   const medium = scanned.filter((f) => getRiskLevel(f.fastMetrics, f.deepMetrics) === 'medium').length
   const low = scanned.filter((f) => getRiskLevel(f.fastMetrics, f.deepMetrics) === 'low').length
   const unscanned = files.length - scanned.length
@@ -20,7 +19,7 @@ function getProjectStats(project: ProjectData) {
     ? Math.max(...scanned.map((f) => getRamPressure(f.fastMetrics, f.deepMetrics)))
     : null
 
-  return { exceeded, high, medium, low, unscanned, libs, maxPressure, scannedCount: scanned.length, totalCount: files.length }
+  return { high, medium, low, unscanned, libs, maxPressure, scannedCount: scanned.length, totalCount: files.length }
 }
 
 interface ProjectCardsProps {
@@ -76,8 +75,7 @@ export function ProjectCards({ projects, activeProjectId, onProjectFilter, onSca
 
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-1.5 flex-wrap">
-                {stats.exceeded > 0 && <ExceededChip count={stats.exceeded} />}
-                {stats.high > 0 && <RiskChip count={stats.high} dot="bg-red-500" text="text-red-400" />}
+{stats.high > 0 && <RiskChip count={stats.high} dot="bg-red-500" text="text-red-400" />}
                 {stats.medium > 0 && <RiskChip count={stats.medium} dot="bg-amber-500" text="text-amber-400" />}
                 {stats.low > 0 && <RiskChip count={stats.low} dot="bg-green-500" text="text-green-400" />}
                 {stats.unscanned > 0 && <RiskChip count={stats.unscanned} dot="bg-slate-600" text="text-slate-500" />}
@@ -119,13 +117,3 @@ function RiskChip({ count, dot, text }: { count: number; dot: string; text: stri
   )
 }
 
-function ExceededChip({ count }: { count: number }) {
-  return (
-    <span className="flex items-center gap-1 text-xs text-red-300 bg-red-950/60 border border-red-800/60 rounded px-1.5 py-0.5 font-semibold">
-      <svg className="w-3 h-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clipRule="evenodd" />
-      </svg>
-      {count}
-    </span>
-  )
-}

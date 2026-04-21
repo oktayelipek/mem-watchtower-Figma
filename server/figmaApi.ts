@@ -76,14 +76,18 @@ export async function getTeamLibraryFileKeys(pat: string, teamId: string): Promi
   }
 }
 
-export async function getFileBranches(pat: string, fileKey: string): Promise<Array<{ key: string; name: string }>> {
+export async function getFileBranches(pat: string, fileKey: string): Promise<Array<{ key: string; name: string; lastModified: string | null }>> {
   try {
     const res = await fetch(`${BASE}/files/${fileKey}/branches`, {
       headers: { 'Authorization': `Bearer ${pat}` },
     })
     if (!res.ok) return []
     const data = await res.json()
-    return (data.branches ?? []).map((b: { key: string; name: string }) => ({ key: b.key, name: b.name }))
+    return (data.branches ?? []).map((b: { key: string; name: string; last_modified?: string }) => ({
+      key: b.key,
+      name: b.name,
+      lastModified: b.last_modified ?? null,
+    }))
   } catch {
     return []
   }

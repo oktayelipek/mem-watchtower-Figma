@@ -22,6 +22,7 @@ export const branches = sqliteTable('branches', {
   parentFileKey: text('parent_file_key').notNull(),
   name: text('name').notNull(),
   estimatedRamMb: real('estimated_ram_mb'),
+  lastModified: text('last_modified'),
   fetchedAt: integer('fetched_at').notNull(),
 })
 

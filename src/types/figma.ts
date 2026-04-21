@@ -16,6 +16,7 @@ export interface BranchInfo {
   branchKey: string
   name: string
   estimatedRamMB: number | null
+  lastModified: string | null
 }
 
 export interface FileData {

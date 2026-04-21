@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { ProjectData } from '../types/figma'
 import {
   getRamPressure, getRamColor, getComplexityBar,
@@ -30,6 +31,16 @@ interface FilesTableProps {
 }
 
 export function FilesTable({ projects, sort, visibleFileKeys, onDeepScanAll }: FilesTableProps) {
+  const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set())
+
+  function toggleExpand(key: string) {
+    setExpandedKeys((prev) => {
+      const next = new Set(prev)
+      next.has(key) ? next.delete(key) : next.add(key)
+      return next
+    })
+  }
+
   const allFiles: FlatFile[] = projects.flatMap((p) =>
     p.files.map((f) => ({ ...f, projectId: p.projectId, projectName: p.projectName }))
   )
@@ -99,11 +110,71 @@ export function FilesTable({ projects, sort, visibleFileKeys, onDeepScanAll }: F
                 key={f.key}
                 file={f}
                 allComplexityScores={allComplexityScores}
+                expanded={expandedKeys.has(f.key)}
+                onToggleExpand={() => toggleExpand(f.key)}
               />
             ))}
           </tbody>
         </table>
       </div>
+    </div>
+  )
+}
+
+function BranchPanel({ branches, parentRamMB }: {
+  branches: FlatFile['branches']
+  parentRamMB: number | null
+}) {
+  return (
+    <div className="ml-6 rounded-lg border border-slate-800 bg-slate-950/60 overflow-hidden">
+      {branches.map((b, i) => {
+        const ram = b.estimatedRamMB
+        const isHeavier = ram !== null && parentRamMB !== null && ram > parentRamMB
+        const delta = ram !== null && parentRamMB !== null ? ram - parentRamMB : null
+        const ramLabel = ram !== null
+          ? ram >= 1024 ? `${(ram / 1024).toFixed(1)} GB` : `${Math.round(ram)} MB`
+          : '—'
+        const deltaLabel = delta !== null
+          ? delta > 0
+            ? `+${Math.round(delta)} MB`
+            : `${Math.round(delta)} MB`
+          : null
+        const staleBranch = b.lastModified
+          ? (Date.now() - new Date(b.lastModified).getTime()) > 60 * 86_400_000
+          : false
+
+        return (
+          <div key={b.branchKey} className={`flex items-center gap-3 px-3 py-2 text-xs ${i > 0 ? 'border-t border-slate-800/60' : ''}`}>
+            <span className="text-slate-600 flex-shrink-0">⎇</span>
+            <span className={`flex-1 truncate font-medium ${isHeavier ? 'text-amber-300' : 'text-slate-300'}`}>
+              {b.name}
+            </span>
+            {staleBranch && (
+              <span title="No changes in 60+ days" className="flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-500">
+                stale
+              </span>
+            )}
+            {b.lastModified && (
+              <span className="text-slate-600 flex-shrink-0">{formatDate(b.lastModified)}</span>
+            )}
+            <span className={`font-mono flex-shrink-0 ${isHeavier ? 'text-amber-400' : 'text-slate-400'}`}>
+              {ramLabel}
+            </span>
+            {deltaLabel && (
+              <span className={`font-mono text-[10px] flex-shrink-0 ${delta! > 0 ? 'text-amber-500' : 'text-green-500'}`}>
+                {deltaLabel}
+              </span>
+            )}
+            {isHeavier && (
+              <span title="Heavier than main — merging may increase RAM" className="flex-shrink-0">
+                <svg className="w-3.5 h-3.5 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                </svg>
+              </span>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -131,9 +202,11 @@ function Th({ children, right, className = '' }: { children?: React.ReactNode; r
   )
 }
 
-function FileRow({ file: f, allComplexityScores }: {
+function FileRow({ file: f, allComplexityScores, expanded, onToggleExpand }: {
   file: FlatFile
   allComplexityScores: number[]
+  expanded: boolean
+  onToggleExpand: () => void
 }) {
   let barRatio = 0
   let barColor = '#64748b'
@@ -155,6 +228,7 @@ function FileRow({ file: f, allComplexityScores }: {
   }
 
   return (
+    <>
     <tr className={`transition-colors ${isExceeded ? 'bg-red-950/40 hover:bg-red-950/50' : isOverThreshold ? 'bg-red-950/20 hover:bg-red-950/30' : 'hover:bg-white/[0.02]'}`}>
       <td className="px-4 py-3 overflow-hidden">
         <div className="flex items-center gap-2">
@@ -186,15 +260,20 @@ function FileRow({ file: f, allComplexityScores }: {
               lib
             </span>
           )}
-          {heavyBranch && (
-            <span
-              title={`Branch "${heavyBranch.name}" is heavier (${heavyBranch.estimatedRamMB !== null ? Math.round(heavyBranch.estimatedRamMB) : '?'} MB) — merging may increase RAM`}
-              className="flex-shrink-0"
+          {f.branches.length > 0 && (
+            <button
+              onClick={(e) => { e.preventDefault(); onToggleExpand() }}
+              title={`${f.branches.length} branch${f.branches.length > 1 ? 'es' : ''}`}
+              className={`flex-shrink-0 flex items-center gap-0.5 text-[10px] font-mono px-1.5 py-0.5 rounded border transition-colors ${
+                expanded
+                  ? 'bg-slate-700 border-slate-500 text-slate-200'
+                  : heavyBranch
+                    ? 'bg-amber-950/40 border-amber-700/50 text-amber-400'
+                    : 'bg-slate-800 border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-300'
+              }`}
             >
-              <svg className="w-3.5 h-3.5 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
-              </svg>
-            </span>
+              ⎇ {f.branches.length}
+            </button>
           )}
         </div>
       </td>
@@ -242,5 +321,13 @@ function FileRow({ file: f, allComplexityScores }: {
         {formatDate(f.last_modified)}
       </td>
     </tr>
+    {expanded && f.branches.length > 0 && (
+      <tr>
+        <td colSpan={6} className="px-4 pb-3 pt-0">
+          <BranchPanel branches={f.branches} parentRamMB={f.deepMetrics?.estimatedRamMB ?? null} />
+        </td>
+      </tr>
+    )}
+    </>
   )
 }

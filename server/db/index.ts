@@ -28,9 +28,11 @@ export function runMigrations() {
       parent_file_key TEXT NOT NULL,
       name TEXT NOT NULL,
       estimated_ram_mb REAL,
+      last_modified TEXT,
       fetched_at INTEGER NOT NULL
     )`)
   } catch { /* already exists */ }
+  try { sqlite.exec('ALTER TABLE branches ADD COLUMN last_modified TEXT') } catch { /* already exists */ }
 
   console.log('DB migrations applied.')
 }

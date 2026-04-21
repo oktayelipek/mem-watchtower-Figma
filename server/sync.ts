@@ -147,31 +147,43 @@ export async function runSync(): Promise<void> {
     )
     console.log(`Library detection done. ${libraryFileKeys.size > 0 ? `${libraryFileKeys.size} published components found via API` : 'Used component count heuristic'}.`)
 
-    // Sync branch list for each file
-    const deepByKey = Object.fromEntries(
-      (await db.select().from(deepMetrics)).map((r) => [r.fileKey, r])
-    )
+    // Sync branch list + deep scan branches
+    const staleDaysForBranches = Number(process.env.STALE_SCAN_DAYS ?? 7)
+    const branchStaleThreshold = Date.now() - staleDaysForBranches * 86_400_000
+    const existingBranchDeep = await db.select().from(branches)
+    const branchDeepByKey = Object.fromEntries(existingBranchDeep.map((r) => [r.branchKey, r]))
+
     await pLimit(
       allFiles.map((f) => async () => {
         const fileBranches = await getFileBranches(pat, f.key)
         for (const branch of fileBranches) {
+          const existing = branchDeepByKey[branch.key]
+          const needsScan = !existing?.estimatedRamMb || existing.fetchedAt < branchStaleThreshold
+
+          let estimatedRamMb: number | null = existing?.estimatedRamMb ?? null
+          if (needsScan) {
+            try {
+              const m = await getDeepMetrics(pat, branch.key)
+              estimatedRamMb = m.estimatedRamMb
+            } catch {
+              // branch may be inaccessible — keep existing value
+            }
+          }
+
           await db.insert(branches).values({
             branchKey: branch.key,
             parentFileKey: f.key,
             name: branch.name,
-            estimatedRamMb: deepByKey[branch.key]?.estimatedRamMb ?? null,
+            estimatedRamMb,
+            lastModified: branch.lastModified,
             fetchedAt: Date.now(),
           }).onConflictDoUpdate({
             target: branches.branchKey,
-            set: {
-              name: branch.name,
-              estimatedRamMb: deepByKey[branch.key]?.estimatedRamMb ?? null,
-              fetchedAt: Date.now(),
-            },
+            set: { name: branch.name, estimatedRamMb, lastModified: branch.lastModified, fetchedAt: Date.now() },
           })
         }
       }),
-      5,
+      2,
     )
 
     // Deep scan: new files + stale files (older than STALE_SCAN_DAYS, default 7)
