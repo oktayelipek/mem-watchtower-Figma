@@ -27,7 +27,7 @@ export function LoginScreen() {
 
         <div>
           <h1 className="text-2xl font-bold text-slate-100">Watchtower</h1>
-          <p className="text-slate-500 text-sm mt-1">Figma Branch RAM İzleme Paneli</p>
+          <p className="text-slate-500 text-sm mt-1">Figma Branch RAM Monitor</p>
         </div>
 
         <button
@@ -35,11 +35,11 @@ export function LoginScreen() {
           className="w-full flex items-center justify-center gap-3 py-3 px-4 rounded-lg bg-[#1e1e1e] border border-slate-700 hover:border-slate-500 text-slate-100 font-medium transition-colors"
         >
           <FigmaIcon />
-          Figma ile Giriş Yap
+          Sign in with Figma
         </button>
 
         <p className="text-xs text-slate-600">
-          Yalnızca okuma izni istenir. Token tarayıcınızda tutulur.
+          Read-only access. Token is stored in your browser only.
         </p>
       </div>
     </div>

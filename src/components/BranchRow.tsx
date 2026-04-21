@@ -49,7 +49,7 @@ export function BranchRow({ data, allComplexityScores, onDeepScan }: BranchRowPr
             <div className="h-full w-1/3 bg-slate-600 animate-pulse rounded-full" />
           </div>
         ) : errorFast ? (
-          <span className="text-xs text-red-400" title={errorFast}>Hata</span>
+          <span className="text-xs text-red-400" title={errorFast}>Error</span>
         ) : (
           <RamBar ratio={barRatio} color={barColor} label={barLabel} showScale={!!deepMetrics} />
         )}
@@ -57,17 +57,17 @@ export function BranchRow({ data, allComplexityScores, onDeepScan }: BranchRowPr
 
       {fastMetrics && !loadingFast && (
         <div className="flex gap-2 flex-shrink-0">
-          <Chip label={`${fastMetrics.pageCount}s`} title="Sayfa" />
-          <Chip label={`${fastMetrics.frameCount}fr`} title="Frame" />
+          <Chip label={`${fastMetrics.pageCount}p`} title="Pages" />
+          <Chip label={`${fastMetrics.frameCount}fr`} title="Frames" />
           {fastMetrics.componentCount > 0 && (
-            <Chip label={`${fastMetrics.componentCount}c`} title="Component" />
+            <Chip label={`${fastMetrics.componentCount}c`} title="Components" />
           )}
         </div>
       )}
 
       {deepMetrics && (
         <div className="flex-shrink-0 text-xs font-mono text-slate-400 whitespace-nowrap">
-          {formatBytes(deepMetrics.jsonSizeMB)} · {deepMetrics.nodeCount.toLocaleString()} node
+          {formatBytes(deepMetrics.jsonSizeMB)} · {deepMetrics.nodeCount.toLocaleString()} nodes
         </div>
       )}
 
@@ -76,7 +76,7 @@ export function BranchRow({ data, allComplexityScores, onDeepScan }: BranchRowPr
         disabled={loadingDeep}
         className="flex-shrink-0 text-xs px-3 py-1 rounded-md border border-slate-700 text-slate-400 hover:border-violet-500 hover:text-violet-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
       >
-        {loadingDeep ? 'Tarıyor…' : deepMetrics ? 'Yenile' : 'Derin Tara'}
+        {loadingDeep ? 'Scanning…' : deepMetrics ? 'Refresh' : 'Deep scan'}
       </button>
 
       {errorDeep && (

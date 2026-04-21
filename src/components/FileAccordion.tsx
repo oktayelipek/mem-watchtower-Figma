@@ -34,8 +34,8 @@ export function FileAccordion({ data, onToggle, onDeepScanFile, onDeepScanAll, v
         <div className="flex-1 min-w-0">
           <div className="font-semibold text-slate-100 truncate">{projectName}</div>
           <div className="text-xs text-slate-500">
-            {files.length} dosya
-            {loadedCount < files.length && ` · ${files.length - loadedCount} yükleniyor`}
+            {files.length} {files.length === 1 ? 'file' : 'files'}
+            {loadedCount < files.length && ` · ${files.length - loadedCount} loading`}
           </div>
         </div>
 
@@ -43,12 +43,12 @@ export function FileAccordion({ data, onToggle, onDeepScanFile, onDeepScanAll, v
           <div className="flex items-center gap-1.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
             {highCount > 0 && (
               <span className="text-xs px-2 py-0.5 rounded-full bg-red-900/40 border border-red-700/40 text-red-400 font-medium">
-                {highCount} yüksek
+                {highCount} high
               </span>
             )}
             {mediumCount > 0 && (
               <span className="text-xs px-2 py-0.5 rounded-full bg-amber-900/40 border border-amber-700/40 text-amber-400 font-medium">
-                {mediumCount} orta
+                {mediumCount} medium
               </span>
             )}
           </div>
@@ -58,22 +58,22 @@ export function FileAccordion({ data, onToggle, onDeepScanFile, onDeepScanAll, v
       {expanded && (
         <div className="border-t border-slate-800 bg-slate-950/40">
           {displayFiles.length === 0 && (
-            <div className="px-5 py-4 text-sm text-slate-500">Dosya bulunamadı.</div>
+            <div className="px-5 py-4 text-sm text-slate-500">No files found.</div>
           )}
 
           {displayFiles.length > 0 && (
             <>
               <div className="flex items-center gap-4 px-4 py-2 border-b border-slate-800/60">
                 <div className="w-2 h-2 flex-shrink-0" />
-                <div className="flex-shrink-0 w-52 text-xs text-slate-600 font-medium uppercase tracking-wide">Dosya</div>
-                <div className="flex-1 text-xs text-slate-600 font-medium uppercase tracking-wide">RAM Yükü</div>
-                <div className="flex-shrink-0 text-xs text-slate-600 font-medium uppercase tracking-wide">Metrikler</div>
+                <div className="flex-shrink-0 w-52 text-xs text-slate-600 font-medium uppercase tracking-wide">File</div>
+                <div className="flex-1 text-xs text-slate-600 font-medium uppercase tracking-wide">RAM pressure</div>
+                <div className="flex-shrink-0 text-xs text-slate-600 font-medium uppercase tracking-wide">Metrics</div>
                 <button
                   onClick={onDeepScanAll}
                   disabled={hasAnyDeepScanning}
                   className="flex-shrink-0 text-xs px-3 py-1 rounded-md bg-violet-900/40 border border-violet-700/40 text-violet-400 hover:bg-violet-800/40 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  Tümünü Tara
+                  Scan all
                 </button>
               </div>
 

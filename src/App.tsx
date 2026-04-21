@@ -160,7 +160,7 @@ export default function App() {
   const handleOAuthSuccess = useCallback(async (token: string) => {
     try {
       const me = await getMe(token)
-      const userName: string = me.handle ?? me.email ?? 'Kullanıcı'
+      const userName: string = me.handle ?? me.email ?? 'User'
       sessionStorage.setItem('figma_token', token)
       sessionStorage.setItem('figma_user', userName)
       setState({ phase: 'dashboard', token, userName })
@@ -303,28 +303,28 @@ export default function App() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0H3" />
             </svg>
             <span className="font-bold text-slate-100">Watchtower</span>
-            <span className="text-xs text-slate-500 border border-slate-700 rounded px-2 py-0.5">Figma Branch Monitor</span>
+            <span className="text-xs text-slate-500 border border-slate-700 rounded px-2 py-0.5">Figma RAM Monitor</span>
           </div>
           <div className="flex items-center gap-4">
             <span className="text-sm text-slate-400">{state.userName}</span>
             <button
               onClick={() => { clearCache(); loadStructure(state.token) }}
               className="text-xs text-slate-600 hover:text-slate-400 transition-colors"
-              title="Cache'i temizle ve yenile"
+              title="Clear cache and refresh"
             >
-              Yenile
+              Refresh
             </button>
-            <button onClick={handleLogout} className="text-xs text-slate-500 hover:text-slate-300 transition-colors">Çıkış</button>
+            <button onClick={handleLogout} className="text-xs text-slate-500 hover:text-slate-300 transition-colors">Sign out</button>
           </div>
         </div>
       </header>
 
       <div className="border-b border-slate-800 bg-slate-950/60">
         <div className="max-w-6xl mx-auto px-6 py-2 flex items-center gap-6 text-xs text-slate-500">
-          <div className="flex items-center gap-1.5"><div className="w-3 h-1.5 rounded-full bg-green-500" /><span>Düşük (&lt;40%)</span></div>
-          <div className="flex items-center gap-1.5"><div className="w-3 h-1.5 rounded-full bg-amber-500" /><span>Orta (40–70%)</span></div>
-          <div className="flex items-center gap-1.5"><div className="w-3 h-1.5 rounded-full bg-red-500" /><span>Yüksek (&gt;70%) — 2GB limitine yakın</span></div>
-          <span className="ml-auto text-slate-600">Hızlı: göreli karmaşıklık · Derin: JSON ×7 ≈ tahmini RAM</span>
+          <div className="flex items-center gap-1.5"><div className="w-3 h-1.5 rounded-full bg-green-500" /><span>Low (&lt;40%)</span></div>
+          <div className="flex items-center gap-1.5"><div className="w-3 h-1.5 rounded-full bg-amber-500" /><span>Medium (40–70%)</span></div>
+          <div className="flex items-center gap-1.5"><div className="w-3 h-1.5 rounded-full bg-red-500" /><span>High (&gt;70%) — near 2 GB limit</span></div>
+          <span className="ml-auto text-slate-600">Fast: relative complexity · Deep: JSON ×7 ≈ estimated RAM</span>
         </div>
       </div>
 
@@ -355,13 +355,13 @@ export default function App() {
         {projects.length === 0 && (
           <div className="text-center py-20 text-slate-500">
             <div className="animate-spin w-8 h-8 border-2 border-slate-700 border-t-violet-500 rounded-full mx-auto mb-4" />
-            <p>Projeler yükleniyor…</p>
+            <p>Loading projects…</p>
           </div>
         )}
 
         {isFiltering && visibleFileKeys.size === 0 && projects.length > 0 && (
           <div className="text-center py-12 text-slate-500 text-sm">
-            Filtre kriterlerine uyan dosya bulunamadı.
+            No files match the current filters.
           </div>
         )}
       </main>

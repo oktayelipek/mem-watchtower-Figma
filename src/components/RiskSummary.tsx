@@ -20,10 +20,10 @@ export function RiskSummary({ projects, onFilter, activeFilter }: RiskSummaryPro
   const unscanned = files.length - scanned.length
 
   const items: { label: string; count: number; filter: RiskFilter; dot: string; text: string; bg: string }[] = [
-    { label: 'Yüksek Risk', count: high, filter: 'high', dot: 'bg-red-500', text: 'text-red-400', bg: 'bg-red-900/20 border-red-700/30 hover:bg-red-900/30' },
-    { label: 'Orta Risk', count: medium, filter: 'medium', dot: 'bg-amber-500', text: 'text-amber-400', bg: 'bg-amber-900/20 border-amber-700/30 hover:bg-amber-900/30' },
-    { label: 'Düşük Risk', count: low, filter: 'low', dot: 'bg-green-500', text: 'text-green-400', bg: 'bg-green-900/20 border-green-700/30 hover:bg-green-900/30' },
-    { label: 'Taranmadı', count: unscanned, filter: 'unscanned', dot: 'bg-slate-600', text: 'text-slate-400', bg: 'bg-slate-800/40 border-slate-700/30 hover:bg-slate-800/60' },
+    { label: 'High risk', count: high, filter: 'high', dot: 'bg-red-500', text: 'text-red-400', bg: 'bg-red-900/20 border-red-700/30 hover:bg-red-900/30' },
+    { label: 'Medium risk', count: medium, filter: 'medium', dot: 'bg-amber-500', text: 'text-amber-400', bg: 'bg-amber-900/20 border-amber-700/30 hover:bg-amber-900/30' },
+    { label: 'Low risk', count: low, filter: 'low', dot: 'bg-green-500', text: 'text-green-400', bg: 'bg-green-900/20 border-green-700/30 hover:bg-green-900/30' },
+    { label: 'Unscanned', count: unscanned, filter: 'unscanned', dot: 'bg-slate-600', text: 'text-slate-400', bg: 'bg-slate-800/40 border-slate-700/30 hover:bg-slate-800/60' },
   ]
 
   return (

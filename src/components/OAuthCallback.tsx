@@ -6,7 +6,7 @@ interface OAuthCallbackProps {
 }
 
 export function OAuthCallback({ onSuccess, onError }: OAuthCallbackProps) {
-  const [status, setStatus] = useState('Figma ile bağlantı kuruluyor…')
+  const [status, setStatus] = useState('Connecting to Figma…')
   const called = useRef(false)
 
   useEffect(() => {
@@ -19,16 +19,16 @@ export function OAuthCallback({ onSuccess, onError }: OAuthCallbackProps) {
     const error = params.get('error')
 
     if (error) {
-      onError(`Figma yetkilendirme hatası: ${error}`)
+      onError(`Figma authorization error: ${error}`)
       return
     }
 
     if (!code) {
-      onError('Geçersiz callback — kod bulunamadı.')
+      onError('Invalid callback — code not found.')
       return
     }
 
-    setStatus('Token alınıyor…')
+    setStatus('Exchanging token…')
 
     fetch('/api/oauth/token', {
       method: 'POST',
@@ -38,7 +38,7 @@ export function OAuthCallback({ onSuccess, onError }: OAuthCallbackProps) {
       .then((r) => r.json())
       .then((data: { access_token?: string; error?: string }) => {
         if (data.error) throw new Error(data.error)
-        if (!data.access_token) throw new Error('Token alınamadı.')
+        if (!data.access_token) throw new Error('No access token returned.')
         window.history.replaceState({}, '', '/')
         onSuccess(data.access_token)
       })

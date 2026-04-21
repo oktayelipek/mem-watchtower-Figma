@@ -15,17 +15,17 @@ interface SortControlsProps {
 }
 
 const sortOptions: { key: SortKey; label: string }[] = [
-  { key: 'ram', label: 'RAM (yüksek→düşük)' },
-  { key: 'complexity', label: 'Karmaşıklık' },
-  { key: 'name', label: 'İsim' },
+  { key: 'ram', label: 'RAM (high→low)' },
+  { key: 'complexity', label: 'Complexity' },
+  { key: 'name', label: 'Name' },
 ]
 
 const riskOptions: { key: RiskFilter; label: string; color: string }[] = [
-  { key: 'all', label: 'Tümü', color: '' },
-  { key: 'high', label: 'Yüksek', color: 'text-red-400 border-red-700/60' },
-  { key: 'medium', label: 'Orta', color: 'text-amber-400 border-amber-700/60' },
-  { key: 'low', label: 'Düşük', color: 'text-green-400 border-green-700/60' },
-  { key: 'unscanned', label: 'Taranmadı', color: 'text-slate-400 border-slate-600' },
+  { key: 'all', label: 'All', color: '' },
+  { key: 'high', label: 'High', color: 'text-red-400 border-red-700/60' },
+  { key: 'medium', label: 'Medium', color: 'text-amber-400 border-amber-700/60' },
+  { key: 'low', label: 'Low', color: 'text-green-400 border-green-700/60' },
+  { key: 'unscanned', label: 'Unscanned', color: 'text-slate-400 border-slate-600' },
 ]
 
 export function SortControls({
@@ -37,18 +37,18 @@ export function SortControls({
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
           <div className="text-sm text-slate-500">
-            <span className="text-slate-300 font-medium">{totalProjects}</span> proje ·{' '}
-            <span className="text-slate-300 font-medium">{totalFiles}</span> dosya
+            <span className="text-slate-300 font-medium">{totalProjects}</span> projects ·{' '}
+            <span className="text-slate-300 font-medium">{totalFiles}</span> files
           </div>
           <button
             onClick={onToggleAll}
             className="text-xs text-slate-500 hover:text-slate-300 transition-colors border border-slate-700 hover:border-slate-500 rounded px-2 py-1"
           >
-            {allExpanded ? 'Tümünü Kapat' : 'Tümünü Aç'}
+            {allExpanded ? 'Collapse all' : 'Expand all'}
           </button>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-500">Sırala:</span>
+          <span className="text-xs text-slate-500">Sort:</span>
           <div className="flex gap-1">
             {sortOptions.map((opt) => (
               <button
@@ -74,7 +74,7 @@ export function SortControls({
             type="text"
             value={search}
             onChange={(e) => onSearch(e.target.value)}
-            placeholder="Dosya ara…"
+            placeholder="Search files…"
             className="w-full pl-8 pr-3 py-1.5 text-xs rounded-md bg-slate-800 border border-slate-700 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-violet-500"
           />
         </div>

@@ -30,7 +30,7 @@ app.post('/api/oauth/token', async (req, res) => {
   const redirectUri = process.env.FIGMA_REDIRECT_URI ?? 'http://localhost:5173/oauth/callback'
 
   if (!clientId || !clientSecret) {
-    res.status(500).json({ error: 'FIGMA_CLIENT_ID veya FIGMA_CLIENT_SECRET eksik' })
+    res.status(500).json({ error: 'FIGMA_CLIENT_ID or FIGMA_CLIENT_SECRET is not set' })
     return
   }
 
@@ -66,7 +66,7 @@ app.post('/api/oauth/token', async (req, res) => {
     try {
       data = JSON.parse(rawText)
     } catch {
-      res.status(502).json({ error: `Figma API hatası (${figmaRes.status}): ${rawText}` })
+      res.status(502).json({ error: `Figma API error (${figmaRes.status}): ${rawText}` })
       return
     }
 
@@ -79,7 +79,7 @@ app.post('/api/oauth/token', async (req, res) => {
     return
   }
 
-  res.status(502).json({ error: 'Figma token endpoint bulunamadı. Lütfen konsolу kontrol et.' })
+  res.status(502).json({ error: 'Figma token endpoint not found. Check server logs.' })
 })
 
 app.get('/api/debug/branches/:fileKey', async (req, res) => {
