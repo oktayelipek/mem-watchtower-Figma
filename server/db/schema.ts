@@ -14,6 +14,15 @@ export const files = sqliteTable('files', {
   thumbnailUrl: text('thumbnail_url'),
   lastModified: text('last_modified').notNull(),
   syncedAt: integer('synced_at').notNull(),
+  isLibrary: integer('is_library').notNull().default(0),
+})
+
+export const branches = sqliteTable('branches', {
+  branchKey: text('branch_key').primaryKey(),
+  parentFileKey: text('parent_file_key').notNull(),
+  name: text('name').notNull(),
+  estimatedRamMb: real('estimated_ram_mb'),
+  fetchedAt: integer('fetched_at').notNull(),
 })
 
 export const fastMetrics = sqliteTable('fast_metrics', {

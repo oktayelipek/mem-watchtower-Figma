@@ -1,6 +1,6 @@
 import { db } from './db/index.js'
-import { projects, files, fastMetrics, deepMetrics, syncLog } from './db/schema.js'
-import { getTeamProjects, getProjectFiles, getFastMetrics, getDeepMetrics, pLimit } from './figmaApi.js'
+import { projects, files, fastMetrics, deepMetrics, syncLog, branches } from './db/schema.js'
+import { getTeamProjects, getProjectFiles, getFastMetrics, getDeepMetrics, getTeamLibraryFileKeys, getFileBranches, pLimit } from './figmaApi.js'
 import { getValidToken } from './auth.js'
 import { eq } from 'drizzle-orm'
 
@@ -122,6 +122,53 @@ export async function runSync(): Promise<void> {
           filesSynced++
         } catch (err) {
           console.error(`Fast metrics for ${f.key} failed:`, err)
+        }
+      }),
+      5,
+    )
+
+    // Detect library files via team components API; fall back to component count heuristic
+    const libraryFileKeys = new Set<string>()
+    for (const teamId of TEAM_IDS) {
+      const keys = await getTeamLibraryFileKeys(pat, teamId)
+      keys.forEach((k) => libraryFileKeys.add(k))
+    }
+    const fastByKey = Object.fromEntries(
+      (await db.select().from(fastMetrics)).map((r) => [r.fileKey, r])
+    )
+    await pLimit(
+      allFiles.map((f) => async () => {
+        const isLib = libraryFileKeys.size > 0
+          ? libraryFileKeys.has(f.key)
+          : (fastByKey[f.key]?.componentCount ?? 0) >= 50
+        await db.update(files).set({ isLibrary: isLib ? 1 : 0 }).where(eq(files.key, f.key))
+      }),
+      5,
+    )
+    console.log(`Library detection done. ${libraryFileKeys.size > 0 ? `${libraryFileKeys.size} published components found via API` : 'Used component count heuristic'}.`)
+
+    // Sync branch list for each file
+    const deepByKey = Object.fromEntries(
+      (await db.select().from(deepMetrics)).map((r) => [r.fileKey, r])
+    )
+    await pLimit(
+      allFiles.map((f) => async () => {
+        const fileBranches = await getFileBranches(pat, f.key)
+        for (const branch of fileBranches) {
+          await db.insert(branches).values({
+            branchKey: branch.key,
+            parentFileKey: f.key,
+            name: branch.name,
+            estimatedRamMb: deepByKey[branch.key]?.estimatedRamMb ?? null,
+            fetchedAt: Date.now(),
+          }).onConflictDoUpdate({
+            target: branches.branchKey,
+            set: {
+              name: branch.name,
+              estimatedRamMb: deepByKey[branch.key]?.estimatedRamMb ?? null,
+              fetchedAt: Date.now(),
+            },
+          })
         }
       }),
       5,

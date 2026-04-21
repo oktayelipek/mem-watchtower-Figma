@@ -4,7 +4,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import cron from 'node-cron'
 import { db, runMigrations } from './db/index.js'
-import { projects, files, fastMetrics, deepMetrics, syncLog, oauthTokens } from './db/schema.js'
+import { projects, files, fastMetrics, deepMetrics, syncLog, oauthTokens, branches } from './db/schema.js'
 import { runSync, isSyncRunning } from './sync.js'
 import { getDeepMetrics } from './figmaApi.js'
 import { exchangeCode, getValidToken, isConnected } from './auth.js'
@@ -67,11 +67,16 @@ app.get('/api/data', async (_req, res) => {
   const allFiles = await db.select().from(files)
   const allFast = await db.select().from(fastMetrics)
   const allDeep = await db.select().from(deepMetrics)
+  const allBranches = await db.select().from(branches)
   const lastSync = await db.select().from(syncLog)
     .orderBy(desc(syncLog.id)).limit(1)
 
   const fastByKey = Object.fromEntries(allFast.map((m) => [m.fileKey, m]))
   const deepByKey = Object.fromEntries(allDeep.map((m) => [m.fileKey, m]))
+  const branchesByParent = allBranches.reduce<Record<string, typeof allBranches>>((acc, b) => {
+    ;(acc[b.parentFileKey] ??= []).push(b)
+    return acc
+  }, {})
 
   const result = allProjects.map((p) => ({
     projectId: p.id,
@@ -84,6 +89,12 @@ app.get('/api/data', async (_req, res) => {
         name: f.name,
         thumbnailUrl: f.thumbnailUrl,
         lastModified: f.lastModified,
+        isLibrary: f.isLibrary === 1,
+        branches: (branchesByParent[f.key] ?? []).map((b) => ({
+          branchKey: b.branchKey,
+          name: b.name,
+          estimatedRamMB: b.estimatedRamMb,
+        })),
         fastMetrics: fastByKey[f.key] ? {
           pageCount: fastByKey[f.key].pageCount,
           frameCount: fastByKey[f.key].frameCount,

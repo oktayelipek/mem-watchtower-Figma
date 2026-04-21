@@ -10,6 +10,7 @@ function getProjectStats(project: ProjectData) {
   const scanned = files.filter((f) => f.deepMetrics)
 
   const exceeded = scanned.filter((f) => f.deepMetrics!.estimatedRamMB > RAM_LIMIT_MB).length
+  const libs = files.filter((f) => f.isLibrary).length
   const high = scanned.filter((f) => getRiskLevel(f.fastMetrics, f.deepMetrics) === 'high' && f.deepMetrics!.estimatedRamMB <= RAM_LIMIT_MB).length
   const medium = scanned.filter((f) => getRiskLevel(f.fastMetrics, f.deepMetrics) === 'medium').length
   const low = scanned.filter((f) => getRiskLevel(f.fastMetrics, f.deepMetrics) === 'low').length
@@ -19,7 +20,7 @@ function getProjectStats(project: ProjectData) {
     ? Math.max(...scanned.map((f) => getRamPressure(f.fastMetrics, f.deepMetrics)))
     : null
 
-  return { exceeded, high, medium, low, unscanned, maxPressure, scannedCount: scanned.length, totalCount: files.length }
+  return { exceeded, high, medium, low, unscanned, libs, maxPressure, scannedCount: scanned.length, totalCount: files.length }
 }
 
 interface ProjectCardsProps {
@@ -80,6 +81,11 @@ export function ProjectCards({ projects, activeProjectId, onProjectFilter, onSca
                 {stats.medium > 0 && <RiskChip count={stats.medium} dot="bg-amber-500" text="text-amber-400" />}
                 {stats.low > 0 && <RiskChip count={stats.low} dot="bg-green-500" text="text-green-400" />}
                 {stats.unscanned > 0 && <RiskChip count={stats.unscanned} dot="bg-slate-600" text="text-slate-500" />}
+                {stats.libs > 0 && (
+                  <span title={`${stats.libs} published library`} className="text-xs text-violet-500 font-semibold">
+                    {stats.libs} lib
+                  </span>
+                )}
                 {stats.scannedCount === 0 && !isScanning && (
                   <span className="text-xs text-slate-600">Not scanned</span>
                 )}

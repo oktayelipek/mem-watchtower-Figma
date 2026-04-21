@@ -41,6 +41,8 @@ export default function App() {
             name: string
             thumbnailUrl: string | null
             lastModified: string
+            isLibrary: boolean
+            branches: Array<{ branchKey: string; name: string; estimatedRamMB: number | null }>
             fastMetrics: { pageCount: number; frameCount: number; componentCount: number; complexityScore: number } | null
             deepMetrics: { jsonSizeMB: number; nodeCount: number; estimatedRamMB: number; fetchedAt: number | null } | null
           }>
@@ -58,6 +60,8 @@ export default function App() {
           name: f.name,
           thumbnail_url: f.thumbnailUrl ?? '',
           last_modified: f.lastModified,
+          isLibrary: f.isLibrary,
+          branches: f.branches,
           fastMetrics: f.fastMetrics,
           deepMetrics: f.deepMetrics ? { ...f.deepMetrics, fetchedAt: f.deepMetrics.fetchedAt ?? null } : null,
           loadingFast: false,

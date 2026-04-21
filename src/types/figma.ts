@@ -12,11 +12,19 @@ export interface DeepMetrics {
   fetchedAt: number | null
 }
 
+export interface BranchInfo {
+  branchKey: string
+  name: string
+  estimatedRamMB: number | null
+}
+
 export interface FileData {
   key: string
   name: string
   thumbnail_url: string
   last_modified: string
+  isLibrary: boolean
+  branches: BranchInfo[]
   fastMetrics: FastMetrics | null
   deepMetrics: DeepMetrics | null
   loadingFast: boolean

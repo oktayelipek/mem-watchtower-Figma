@@ -12,6 +12,8 @@ interface FlatFile {
   key: string
   name: string
   last_modified: string
+  isLibrary: boolean
+  branches: ProjectData['files'][number]['branches']
   fastMetrics: ProjectData['files'][number]['fastMetrics']
   deepMetrics: ProjectData['files'][number]['deepMetrics']
   loadingFast: boolean
@@ -140,6 +142,10 @@ function FileRow({ file: f, allComplexityScores }: {
   const THRESHOLD_MB = RAM_LIMIT_MB * 0.7
   const isOverThreshold = !!f.deepMetrics && f.deepMetrics.estimatedRamMB >= THRESHOLD_MB && !isExceeded
 
+  const heavyBranch = f.branches.find(
+    (b) => b.estimatedRamMB !== null && b.estimatedRamMB > (f.deepMetrics?.estimatedRamMB ?? 0)
+  )
+
   if (f.deepMetrics) {
     barRatio = getRamPressure(f.fastMetrics, f.deepMetrics)
     barColor = getRamColor(barRatio)
@@ -175,6 +181,21 @@ function FileRow({ file: f, allComplexityScores }: {
           >
             {f.name}
           </a>
+          {f.isLibrary && (
+            <span title="Published component library" className="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-violet-900/50 border border-violet-700/50 text-violet-400">
+              lib
+            </span>
+          )}
+          {heavyBranch && (
+            <span
+              title={`Branch "${heavyBranch.name}" is heavier (${heavyBranch.estimatedRamMB !== null ? Math.round(heavyBranch.estimatedRamMB) : '?'} MB) — merging may increase RAM`}
+              className="flex-shrink-0"
+            >
+              <svg className="w-3.5 h-3.5 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+              </svg>
+            </span>
+          )}
         </div>
       </td>
       <td className="px-4 py-3 overflow-hidden">

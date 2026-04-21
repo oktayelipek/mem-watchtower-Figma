@@ -62,6 +62,33 @@ export async function getDeepMetrics(pat: string, fileKey: string) {
   return { jsonSizeMb, nodeCount, estimatedRamMb: jsonSizeMb * 7 }
 }
 
+export async function getTeamLibraryFileKeys(pat: string, teamId: string): Promise<Set<string>> {
+  try {
+    const res = await fetch(`${BASE}/teams/${teamId}/components`, {
+      headers: { 'Authorization': `Bearer ${pat}` },
+    })
+    if (!res.ok) return new Set()
+    const data = await res.json()
+    const components: Array<{ file_key: string }> = data.meta?.components ?? []
+    return new Set(components.map((c) => c.file_key))
+  } catch {
+    return new Set()
+  }
+}
+
+export async function getFileBranches(pat: string, fileKey: string): Promise<Array<{ key: string; name: string }>> {
+  try {
+    const res = await fetch(`${BASE}/files/${fileKey}/branches`, {
+      headers: { 'Authorization': `Bearer ${pat}` },
+    })
+    if (!res.ok) return []
+    const data = await res.json()
+    return (data.branches ?? []).map((b: { key: string; name: string }) => ({ key: b.key, name: b.name }))
+  } catch {
+    return []
+  }
+}
+
 export async function pLimit<T>(tasks: (() => Promise<T>)[], concurrency = 5): Promise<T[]> {
   const results: T[] = []
   let i = 0
