@@ -122,7 +122,7 @@ export default function App() {
           proj.projectId !== projectId ? proj : {
             ...proj,
             files: proj.files.map((f) =>
-              f.key === fileKey ? { ...f, deepMetrics: metrics, loadingDeep: false } : f
+              f.key === fileKey ? { ...f, deepMetrics: { ...metrics, fetchedAt: Date.now() }, loadingDeep: false } : f
             ),
           }
         )
