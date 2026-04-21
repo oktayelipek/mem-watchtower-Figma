@@ -174,15 +174,24 @@ export async function runSync(): Promise<void> {
       5,
     )
 
-    // Deep scan files that don't have metrics yet
-    const existingDeep = await db.select({ fileKey: deepMetrics.fileKey }).from(deepMetrics)
-    const existingDeepKeys = new Set(existingDeep.map((r) => r.fileKey))
-    const unscannedFiles = allFiles.filter((f) => !existingDeepKeys.has(f.key))
+    // Deep scan: new files + stale files (older than STALE_SCAN_DAYS, default 7)
+    const staleDays = Number(process.env.STALE_SCAN_DAYS ?? 7)
+    const staleThreshold = Date.now() - staleDays * 86_400_000
+    const existingDeep = await db.select({ fileKey: deepMetrics.fileKey, fetchedAt: deepMetrics.fetchedAt }).from(deepMetrics)
+    const deepInfoByKey = Object.fromEntries(existingDeep.map((r) => [r.fileKey, r]))
 
-    if (unscannedFiles.length > 0) {
-      console.log(`Deep scanning ${unscannedFiles.length} new files…`)
+    const filesToScan = allFiles.filter((f) => {
+      const info = deepInfoByKey[f.key]
+      if (!info) return true                    // never scanned
+      return info.fetchedAt < staleThreshold    // stale
+    })
+
+    if (filesToScan.length > 0) {
+      const newCount = filesToScan.filter((f) => !deepInfoByKey[f.key]).length
+      const staleCount = filesToScan.length - newCount
+      console.log(`Deep scanning ${filesToScan.length} files (${newCount} new, ${staleCount} stale >=${staleDays}d)…`)
       await pLimit(
-        unscannedFiles.map((f) => async () => {
+        filesToScan.map((f) => async () => {
           try {
             const m = await getDeepMetrics(pat, f.key)
             await db.insert(deepMetrics).values({
