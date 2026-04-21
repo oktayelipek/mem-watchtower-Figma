@@ -33,6 +33,14 @@ export const deepMetrics = sqliteTable('deep_metrics', {
   fetchedAt: integer('fetched_at').notNull(),
 })
 
+export const oauthTokens = sqliteTable('oauth_tokens', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  accessToken: text('access_token').notNull(),
+  refreshToken: text('refresh_token'),
+  expiresAt: integer('expires_at').notNull(), // unix ms
+  updatedAt: integer('updated_at').notNull(),
+})
+
 export const syncLog = sqliteTable('sync_log', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   startedAt: integer('started_at').notNull(),

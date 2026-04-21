@@ -2,7 +2,7 @@ const BASE = 'https://api.figma.com/v1'
 
 async function figmaFetch(pat: string, path: string): Promise<Response> {
   const res = await fetch(`${BASE}${path}`, {
-    headers: { 'X-Figma-Token': pat },
+    headers: { 'Authorization': `Bearer ${pat}` },
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))

@@ -1,6 +1,7 @@
 import { db } from './db/index.js'
 import { projects, files, fastMetrics, syncLog } from './db/schema.js'
 import { getTeamProjects, getProjectFiles, getFastMetrics, pLimit } from './figmaApi.js'
+import { getValidToken } from './auth.js'
 import { eq } from 'drizzle-orm'
 
 const TEAM_IDS = [...new Set(
@@ -20,8 +21,6 @@ export async function runSync(): Promise<void> {
     return
   }
 
-  const pat = process.env.FIGMA_PAT
-  if (!pat) throw new Error('FIGMA_PAT environment variable is not set')
   if (TEAM_IDS.length === 0) throw new Error('VITE_FIGMA_TEAM_IDS is empty')
 
   syncRunning = true
@@ -35,6 +34,8 @@ export async function runSync(): Promise<void> {
   let filesSynced = 0
 
   try {
+    const pat = await getValidToken()
+
     // Fetch all projects from all teams
     const projectsByTeam = await pLimit(
       TEAM_IDS.map((teamId) => () => getTeamProjects(pat, teamId).then((ps) =>

@@ -7,6 +7,7 @@ import { db, runMigrations } from './db/index.js'
 import { projects, files, fastMetrics, deepMetrics, syncLog } from './db/schema.js'
 import { runSync, isSyncRunning } from './sync.js'
 import { getDeepMetrics } from './figmaApi.js'
+import { exchangeCode, getValidToken, isConnected } from './auth.js'
 import { eq, desc } from 'drizzle-orm'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -16,6 +17,43 @@ runMigrations()
 
 const app = express()
 app.use(express.json())
+
+// ── OAuth ───────────────────────────────────────────────────────────────────
+
+app.get('/api/auth/status', async (_req, res) => {
+  res.json({ connected: await isConnected() })
+})
+
+app.get('/api/auth/connect', (_req, res) => {
+  const clientId = process.env.FIGMA_CLIENT_ID
+  const redirectUri = process.env.FIGMA_REDIRECT_URI
+  if (!clientId || !redirectUri) {
+    res.status(500).send('FIGMA_CLIENT_ID or FIGMA_REDIRECT_URI not set')
+    return
+  }
+  const state = Math.random().toString(36).slice(2)
+  const url = new URL('https://www.figma.com/oauth')
+  url.searchParams.set('client_id', clientId)
+  url.searchParams.set('redirect_uri', redirectUri)
+  url.searchParams.set('scope', 'current_user:read,file_content:read,file_metadata:read,projects:read')
+  url.searchParams.set('state', state)
+  url.searchParams.set('response_type', 'code')
+  res.redirect(url.toString())
+})
+
+app.get('/oauth/callback', async (req, res) => {
+  const { code, error } = req.query as Record<string, string>
+  if (error) { res.status(400).send(`Figma OAuth error: ${error}`); return }
+  if (!code) { res.status(400).send('Missing code'); return }
+  try {
+    await exchangeCode(code)
+    // Kick off initial sync right after connecting
+    if (!isSyncRunning()) runSync().catch((err) => console.error('Post-connect sync error:', err))
+    res.redirect('/')
+  } catch (err) {
+    res.status(500).send(`Token exchange failed: ${(err as Error).message}`)
+  }
+})
 
 // ── Data API ────────────────────────────────────────────────────────────────
 
@@ -61,11 +99,9 @@ app.get('/api/data', async (_req, res) => {
 // ── Deep scan (on-demand) ───────────────────────────────────────────────────
 
 app.post('/api/files/:key/deep-scan', async (req, res) => {
-  const pat = process.env.FIGMA_PAT
-  if (!pat) { res.status(500).json({ error: 'FIGMA_PAT not set' }); return }
-
   const { key } = req.params
   try {
+    const pat = await getValidToken()
     const m = await getDeepMetrics(pat, key)
     await db.insert(deepMetrics).values({
       fileKey: key,
@@ -120,10 +156,13 @@ cron.schedule(cronSchedule, () => {
 })
 console.log(`Sync scheduled: ${cronSchedule}`)
 
-// Auto-sync on startup if DB is empty
-db.select().from(syncLog).limit(1).then((rows) => {
-  if (rows.length === 0) {
-    console.log('No previous sync found. Running initial sync...')
-    runSync().catch((err) => console.error('Initial sync error:', err))
-  }
+// Auto-sync on startup if DB is empty and already connected
+isConnected().then((connected) => {
+  if (!connected) return
+  db.select().from(syncLog).limit(1).then((rows) => {
+    if (rows.length === 0) {
+      console.log('No previous sync found. Running initial sync...')
+      runSync().catch((err) => console.error('Initial sync error:', err))
+    }
+  })
 })

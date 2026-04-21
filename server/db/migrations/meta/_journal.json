@@ -8,6 +8,13 @@
       "when": 1776774136350,
       "tag": "0000_fast_human_torch",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1776774412395,
+      "tag": "0001_yummy_kid_colt",
+      "breakpoints": true
     }
   ]
 }
