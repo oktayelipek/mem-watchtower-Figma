@@ -102,7 +102,7 @@ app.get('/api/debug/branches/:fileKey', async (req, res) => {
 if (isProd) {
   const distPath = path.join(__dirname, '../dist')
   app.use(express.static(distPath))
-  app.get('*', (_req, res) => res.sendFile(path.join(distPath, 'index.html')))
+  app.use((_req, res) => res.sendFile(path.join(distPath, 'index.html')))
 }
 
 const port = Number(process.env.PORT ?? 3001)
