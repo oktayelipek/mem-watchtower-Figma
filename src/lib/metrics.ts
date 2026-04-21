@@ -22,7 +22,7 @@ export function getRamLabel(fast: FastMetrics | null, deep: DeepMetrics | null):
       ? `~${(mb / 1024).toFixed(1)} GB est.`
       : `~${Math.round(mb)} MB est.`
   }
-  if (fast) return `${fast.pageCount}s / ${fast.frameCount}fr`
+  if (fast) return `skor ${fast.complexityScore}`
   return '—'
 }
 
