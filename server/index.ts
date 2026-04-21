@@ -1,6 +1,8 @@
 import 'dotenv/config'
 import express from 'express'
+import { rateLimit } from 'express-rate-limit'
 import path from 'path'
+import fs from 'fs'
 import { fileURLToPath } from 'url'
 import cron from 'node-cron'
 import { db, runMigrations } from './db/index.js'
@@ -15,10 +17,32 @@ const isProd = process.env.NODE_ENV === 'production'
 
 runMigrations()
 
+const startedAt = Date.now()
 const app = express()
 app.use(express.json())
 
+const deepScanLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 10,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { error: 'Too many deep scan requests — try again in a minute.' },
+})
+
 // ── OAuth ───────────────────────────────────────────────────────────────────
+
+app.get('/health', async (_req, res) => {
+  const lastSync = await db.select().from(syncLog).orderBy(desc(syncLog.id)).limit(1)
+  const dbPath = process.env.DB_PATH ?? path.join(process.cwd(), 'data', 'watchtower.db')
+  let dbSizeBytes: number | null = null
+  try { dbSizeBytes = fs.statSync(dbPath).size } catch { /* db not found */ }
+  res.json({
+    status: 'ok',
+    uptimeSeconds: Math.floor((Date.now() - startedAt) / 1000),
+    lastSync: lastSync[0] ?? null,
+    dbSizeBytes,
+  })
+})
 
 app.get('/api/auth/status', async (_req, res) => {
   res.json({ connected: await isConnected() })
@@ -115,7 +139,7 @@ app.get('/api/data', async (_req, res) => {
 
 // ── Deep scan (on-demand) ───────────────────────────────────────────────────
 
-app.post('/api/files/:key/deep-scan', async (req, res) => {
+app.post('/api/files/:key/deep-scan', deepScanLimiter, async (req, res) => {
   const { key } = req.params
   try {
     const pat = await getValidToken()

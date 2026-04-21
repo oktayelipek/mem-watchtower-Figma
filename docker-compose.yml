@@ -1,0 +1,30 @@
+services:
+  watchtower:
+    build:
+      context: .
+      args:
+        VITE_FIGMA_TEAM_IDS: ${VITE_FIGMA_TEAM_IDS}
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      FIGMA_CLIENT_ID: ${FIGMA_CLIENT_ID}
+      FIGMA_CLIENT_SECRET: ${FIGMA_CLIENT_SECRET}
+      FIGMA_REDIRECT_URI: ${FIGMA_REDIRECT_URI}
+      VITE_FIGMA_TEAM_IDS: ${VITE_FIGMA_TEAM_IDS}
+      WATCH_PROJECTS: ${WATCH_PROJECTS:-}
+      DB_PATH: /data/watchtower.db
+      SYNC_CRON: ${SYNC_CRON:-0 6 * * *}
+    volumes:
+      - watchtower_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  watchtower_data:
