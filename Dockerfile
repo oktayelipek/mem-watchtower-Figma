@@ -11,7 +11,7 @@ RUN npm ci
 COPY . .
 
 # VITE_ vars are baked in at build time — pass via Coolify Build Variables
-ARG VITE_FIGMA_TEAM_IDS
+ARG VITE_FIGMA_TEAM_IDS=""
 
 RUN npm run build
 

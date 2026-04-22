@@ -181,8 +181,11 @@ app.get('/api/sync/status', async (_req, res) => {
 
 if (isProd) {
   const distPath = path.join(__dirname, '../dist')
+  console.log(`Serving static files from: ${distPath}`)
   app.use(express.static(distPath))
   app.use((_req, res) => res.sendFile(path.join(distPath, 'index.html')))
+} else {
+  console.log('Development mode — static files not served by Express')
 }
 
 // ── Start ───────────────────────────────────────────────────────────────────
