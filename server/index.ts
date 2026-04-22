@@ -13,7 +13,6 @@ import { exchangeCode, getValidToken, isConnected } from './auth.js'
 import { eq, desc } from 'drizzle-orm'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const isProd = process.env.NODE_ENV === 'production'
 
 runMigrations()
 
@@ -179,13 +178,13 @@ app.get('/api/sync/status', async (_req, res) => {
 
 // ── Static frontend ─────────────────────────────────────────────────────────
 
-if (isProd) {
-  const distPath = path.join(__dirname, '../dist')
+const distPath = path.join(__dirname, '../dist')
+if (fs.existsSync(path.join(distPath, 'index.html'))) {
   console.log(`Serving static files from: ${distPath}`)
   app.use(express.static(distPath))
   app.use((_req, res) => res.sendFile(path.join(distPath, 'index.html')))
 } else {
-  console.log('Development mode — static files not served by Express')
+  console.log(`No dist/index.html found at ${distPath} — dev mode, Vite handles frontend`)
 }
 
 // ── Start ───────────────────────────────────────────────────────────────────
