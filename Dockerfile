@@ -1,6 +1,6 @@
-FROM node:20-alpine
+# ── Stage 1: Build ──────────────────────────────────────────────────────────
+FROM node:20-alpine AS builder
 
-# Required for better-sqlite3 native compilation
 RUN apk add --no-cache python3 make g++
 
 WORKDIR /app
@@ -10,10 +10,21 @@ RUN npm ci
 
 COPY . .
 
-# VITE_ vars are baked in at build time — pass via Coolify Build Variables
 ARG VITE_FIGMA_TEAM_IDS=""
-
 RUN npm run build
+
+# ── Stage 2: Runtime ────────────────────────────────────────────────────────
+FROM node:20-alpine
+
+RUN apk add --no-cache python3 make g++
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci --omit=dev
+
+COPY server ./server
+COPY --from=builder /app/dist ./dist
 
 EXPOSE 3001
 
