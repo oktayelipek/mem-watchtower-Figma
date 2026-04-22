@@ -16,6 +16,8 @@ RUN npm run build
 # ── Stage 2: Runtime ────────────────────────────────────────────────────────
 FROM node:20-alpine
 
+ENV NODE_ENV=production
+
 RUN apk add --no-cache python3 make g++
 
 WORKDIR /app
