@@ -35,11 +35,20 @@ app.get('/health', async (_req, res) => {
   const dbPath = process.env.DB_PATH ?? path.join(process.cwd(), 'data', 'watchtower.db')
   let dbSizeBytes: number | null = null
   try { dbSizeBytes = fs.statSync(dbPath).size } catch { /* db not found */ }
+  const resolvedDist = path.join(__dirname, '../dist')
   res.json({
     status: 'ok',
     uptimeSeconds: Math.floor((Date.now() - startedAt) / 1000),
     lastSync: lastSync[0] ?? null,
     dbSizeBytes,
+    debug: {
+      __dirname,
+      distPath: resolvedDist,
+      distExists: fs.existsSync(resolvedDist),
+      indexExists: fs.existsSync(path.join(resolvedDist, 'index.html')),
+      nodeEnv: process.env.NODE_ENV,
+      cwd: process.cwd(),
+    },
   })
 })
 
